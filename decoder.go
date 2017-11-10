@@ -11,25 +11,29 @@ import (
 // Pattern is the high level representation of the
 // drum pattern contained in a .splice file.
 type Pattern struct {
+	instruments []Instrument
 	version     string
 	tempo       float32
-	instruments []instrument
 }
 
-type instrument struct {
+// Instrument is the high level representation of the
+// instrument section of a drum machine pattern
+type Instrument struct {
+	measure []Step
 	num     uint32
 	name    string
-	measure []step
 }
 
-type step []byte
+// Step is the representation of a step within a musical measure
+// in the drum machine pattern
+type Step []byte
 
 // DecodeFile decodes the drum machine file found at the provided path
 // and returns a pointer to a parsed pattern which is the entry point to the
 // rest of the data.
-func DecodeFile(path string) (*Pattern, error) {
+func DecodeFile(path string) (Pattern, error) {
 
-	p := &Pattern{}
+	var p Pattern
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -37,19 +41,17 @@ func DecodeFile(path string) (*Pattern, error) {
 	}
 
 	headerBin := make([]byte, 13)
-	_, err = f.Read(headerBin)
-	if err != nil {
+	if _, err = f.Read(headerBin); err != nil {
 		return p, err
 	}
-	_, err = parseHeader(headerBin)
-	if err != nil {
+
+	if _, err = parseHeader(headerBin); err != nil {
 		return p, err
 	}
 
 	numBytesSlice := make([]byte, 1)
 
-	_, err = f.Read(numBytesSlice)
-	if err != nil {
+	if _, err = f.Read(numBytesSlice); err != nil {
 		return p, err
 	}
 
@@ -58,8 +60,7 @@ func DecodeFile(path string) (*Pattern, error) {
 	versionBin := make([]byte, 32)
 	numBytesRemaining = numBytesRemaining - 32
 
-	_, err = f.Read(versionBin)
-	if err != nil {
+	if _, err = f.Read(versionBin); err != nil {
 		return p, err
 	}
 
@@ -68,8 +69,7 @@ func DecodeFile(path string) (*Pattern, error) {
 	tempoBin := make([]byte, 4)
 	numBytesRemaining = numBytesRemaining - 4
 
-	_, err = f.Read(tempoBin)
-	if err != nil {
+	if _, err = f.Read(tempoBin); err != nil {
 		return p, err
 	}
 
@@ -83,14 +83,18 @@ func DecodeFile(path string) (*Pattern, error) {
 			return p, err
 		}
 
-		p.instruments = append(p.instruments, *i)
+		p.instruments = append(p.instruments, i)
 		numBytesRemaining = numBytesRemaining - uint64(n)
 	}
 
+	if err := f.Close(); err != nil {
+		return p, err
+	}
 	return p, nil
 }
 
-func (p *Pattern) String() string {
+// String converts a drum machine pattern into a string
+func (p Pattern) String() string {
 
 	version := fmt.Sprintf("Saved with HW Version: %v\n", p.version)
 	tempo := fmt.Sprintf("Tempo: %v\n", p.tempo)
@@ -98,7 +102,7 @@ func (p *Pattern) String() string {
 	instruments := ""
 
 	for _, instrument := range p.instruments {
-		var line = fmt.Sprintf("(%d) %s\t|", instrument.num, instrument.name)
+		line := fmt.Sprintf("(%d) %s\t|", instrument.num, instrument.name)
 
 		for _, measure := range instrument.measure {
 
@@ -119,16 +123,15 @@ func (p *Pattern) String() string {
 	return version + tempo + instruments
 }
 
-func readInstrument(f *os.File) (uint16, *instrument, error) {
+func readInstrument(f *os.File) (uint16, Instrument, error) {
 
-	inst := &instrument{}
-	numBytesRead := uint16(0)
+	var inst Instrument
+	var numBytesRead uint16
 
 	numBin := make([]byte, 4)
 	numBytesRead += 4
 
-	_, err := f.Read(numBin)
-	if err != nil {
+	if _, err := f.Read(numBin); err != nil {
 		return numBytesRead, inst, err
 	}
 
@@ -141,8 +144,7 @@ func readInstrument(f *os.File) (uint16, *instrument, error) {
 	nameLengthBin := make([]byte, 1)
 	numBytesRead++
 
-	_, err = f.Read(nameLengthBin)
-	if err != nil {
+	if _, err := f.Read(nameLengthBin); err != nil {
 		return numBytesRead, inst, err
 	}
 
@@ -151,8 +153,7 @@ func readInstrument(f *os.File) (uint16, *instrument, error) {
 	nameBin := make([]byte, nameLength)
 	numBytesRead += uint16(nameLength)
 
-	_, err = f.Read(nameBin)
-	if err != nil {
+	if _, err := f.Read(nameBin); err != nil {
 		return numBytesRead, inst, err
 	}
 
@@ -163,8 +164,7 @@ func readInstrument(f *os.File) (uint16, *instrument, error) {
 		stepBin := make([]byte, 4)
 		numBytesRead += uint16(4)
 
-		_, err := f.Read(stepBin)
-		if err != nil {
+		if _, err := f.Read(stepBin); err != nil {
 			return numBytesRead, inst, err
 		}
 
