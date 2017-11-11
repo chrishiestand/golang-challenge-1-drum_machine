@@ -116,6 +116,9 @@ func readInstruments(remainingBytes []byte) []Instrument {
 
 	for len(remainingBytes) > 0 {
 
+		// Is there a better way to track remainingBytes than returning rb
+		// e.g. I'd like to pass by reference but passing slices by reference
+		// seems no bueno
 		i, rb := readInstrument(remainingBytes)
 		remainingBytes = rb
 		instruments = append(instruments, i)
