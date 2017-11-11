@@ -32,28 +32,28 @@ type Step []byte
 // DecodeFile decodes the drum machine file found at the provided path
 // and returns a pointer to a parsed pattern which is the entry point to the
 // rest of the data.
-func DecodeFile(path string) (Pattern, error) {
+func DecodeFile(path string) (*Pattern, error) {
 
 	var p Pattern
 
 	f, err := os.Open(path)
 	if err != nil {
-		return p, err
+		return &p, err
 	}
 
 	headerBin := make([]byte, 13)
 	if _, err = f.Read(headerBin); err != nil {
-		return p, err
+		return &p, err
 	}
 
 	if _, err = parseHeader(headerBin); err != nil {
-		return p, err
+		return &p, err
 	}
 
 	numBytesSlice := make([]byte, 1)
 
 	if _, err = f.Read(numBytesSlice); err != nil {
-		return p, err
+		return &p, err
 	}
 
 	numBytesRemaining := uint64(numBytesSlice[0])
@@ -61,7 +61,7 @@ func DecodeFile(path string) (Pattern, error) {
 	remainingBytes := make([]byte, numBytesRemaining)
 
 	if _, err := io.ReadFull(f, remainingBytes); err != nil {
-		return p, err
+		return &p, err
 	}
 
 	versionBin, remainingBytes := remainingBytes[0:32], remainingBytes[32:]
@@ -75,9 +75,9 @@ func DecodeFile(path string) (Pattern, error) {
 	p.instruments = readInstruments(remainingBytes)
 
 	if err := f.Close(); err != nil {
-		return p, err
+		return &p, err
 	}
-	return p, nil
+	return &p, nil
 }
 
 // String converts a drum machine pattern into a string
