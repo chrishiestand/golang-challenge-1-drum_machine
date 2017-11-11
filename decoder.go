@@ -110,48 +110,48 @@ func (p Pattern) String() string {
 	return version + tempo + instruments
 }
 
-func readInstruments(remainingBytes []byte) []Instrument {
+func readInstruments(instrumentBytes []byte) []Instrument {
 
 	instruments := make([]Instrument, 0)
 
-	for len(remainingBytes) > 0 {
+	for len(instrumentBytes) > 0 {
 
-		// Is there a better way to track remainingBytes than returning rb
+		// Is there a better way to track instrumentBytes than returning rb
 		// e.g. I'd like to pass by reference but passing slices by reference
 		// seems no bueno
-		i, rb := readInstrument(remainingBytes)
-		remainingBytes = rb
+		i, rb := readInstrument(instrumentBytes)
+		instrumentBytes = rb
 		instruments = append(instruments, i)
 	}
 	return instruments
 }
 
-func readInstrument(remainingBytes []byte) (Instrument, []byte) {
+func readInstrument(instrumentBytes []byte) (Instrument, []byte) {
 
 	var inst Instrument
 
-	numBin, remainingBytes := remainingBytes[0:4], remainingBytes[4:]
+	numBin, instrumentBytes := instrumentBytes[0:4], instrumentBytes[4:]
 
 	buf := bytes.NewReader(numBin)
 	binary.Read(buf, binary.LittleEndian, &inst.num)
 
-	nameLengthBin, remainingBytes := remainingBytes[0:1], remainingBytes[1:]
+	nameLengthBin, instrumentBytes := instrumentBytes[0:1], instrumentBytes[1:]
 
 	nameLength := nameLengthBin[0]
 
-	nameBin, remainingBytes := remainingBytes[0:nameLength], remainingBytes[nameLength:]
+	nameBin, instrumentBytes := instrumentBytes[0:nameLength], instrumentBytes[nameLength:]
 
 	inst.name = string(nameBin)
 
 	for i := 0; i < 4; i++ {
 
-		stepBin, rb := remainingBytes[0:4], remainingBytes[4:]
-		remainingBytes = rb
+		stepBin, rb := instrumentBytes[0:4], instrumentBytes[4:]
+		instrumentBytes = rb
 
 		inst.measure = append(inst.measure, stepBin)
 	}
 
-	return inst, remainingBytes
+	return inst, instrumentBytes
 }
 
 func parseHeader(h []byte) (string, error) {
