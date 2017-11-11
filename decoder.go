@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -57,35 +58,21 @@ func DecodeFile(path string) (Pattern, error) {
 
 	numBytesRemaining := uint64(numBytesSlice[0])
 
-	versionBin := make([]byte, 32)
-	numBytesRemaining = numBytesRemaining - 32
+	remainingBytes := make([]byte, numBytesRemaining)
 
-	if _, err = f.Read(versionBin); err != nil {
+	if _, err := io.ReadFull(f, remainingBytes); err != nil {
 		return p, err
 	}
+
+	versionBin, remainingBytes := remainingBytes[0:32], remainingBytes[32:]
 
 	p.version = string(bytes.Trim(versionBin, "\x00"))
 
-	tempoBin := make([]byte, 4)
-	numBytesRemaining = numBytesRemaining - 4
-
-	if _, err = f.Read(tempoBin); err != nil {
-		return p, err
-	}
-
+	tempoBin, remainingBytes := remainingBytes[0:4], remainingBytes[4:]
 	buf := bytes.NewReader(tempoBin)
 	binary.Read(buf, binary.LittleEndian, &p.tempo)
 
-	for numBytesRemaining > 0 {
-
-		n, i, err := readInstrument(f)
-		if err != nil {
-			return p, err
-		}
-
-		p.instruments = append(p.instruments, i)
-		numBytesRemaining = numBytesRemaining - uint64(n)
-	}
+	p.instruments = readInstruments(remainingBytes)
 
 	if err := f.Close(); err != nil {
 		return p, err
@@ -123,55 +110,45 @@ func (p Pattern) String() string {
 	return version + tempo + instruments
 }
 
-func readInstrument(f *os.File) (uint16, Instrument, error) {
+func readInstruments(remainingBytes []byte) []Instrument {
+
+	instruments := make([]Instrument, 0)
+
+	for len(remainingBytes) > 0 {
+
+		i, rb := readInstrument(remainingBytes)
+		remainingBytes = rb
+		instruments = append(instruments, i)
+	}
+	return instruments
+}
+
+func readInstrument(remainingBytes []byte) (Instrument, []byte) {
 
 	var inst Instrument
-	var numBytesRead uint16
 
-	numBin := make([]byte, 4)
-	numBytesRead += 4
-
-	if _, err := f.Read(numBin); err != nil {
-		return numBytesRead, inst, err
-	}
+	numBin, remainingBytes := remainingBytes[0:4], remainingBytes[4:]
 
 	buf := bytes.NewReader(numBin)
-	var instrNum uint32
-	binary.Read(buf, binary.LittleEndian, &instrNum)
+	binary.Read(buf, binary.LittleEndian, &inst.num)
 
-	inst.num = instrNum
-
-	nameLengthBin := make([]byte, 1)
-	numBytesRead++
-
-	if _, err := f.Read(nameLengthBin); err != nil {
-		return numBytesRead, inst, err
-	}
+	nameLengthBin, remainingBytes := remainingBytes[0:1], remainingBytes[1:]
 
 	nameLength := nameLengthBin[0]
 
-	nameBin := make([]byte, nameLength)
-	numBytesRead += uint16(nameLength)
-
-	if _, err := f.Read(nameBin); err != nil {
-		return numBytesRead, inst, err
-	}
+	nameBin, remainingBytes := remainingBytes[0:nameLength], remainingBytes[nameLength:]
 
 	inst.name = string(nameBin)
 
 	for i := 0; i < 4; i++ {
 
-		stepBin := make([]byte, 4)
-		numBytesRead += uint16(4)
-
-		if _, err := f.Read(stepBin); err != nil {
-			return numBytesRead, inst, err
-		}
+		stepBin, rb := remainingBytes[0:4], remainingBytes[4:]
+		remainingBytes = rb
 
 		inst.measure = append(inst.measure, stepBin)
 	}
 
-	return numBytesRead, inst, nil
+	return inst, remainingBytes
 }
 
 func parseHeader(h []byte) (string, error) {
